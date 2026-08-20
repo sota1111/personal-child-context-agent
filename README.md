@@ -21,6 +21,18 @@ Detect → Clarify → Plan → Act → Track → Re-evaluate
 
 The initial MVP focuses on **Field Trip / Excursion Readiness**.
 
+These six steps are wired together by the deterministic orchestrator
+`pcca.flow.AgentFlow` (`build_flow()`): it runs the Document Tool (Detect), the
+Conflict Tool (Clarify), plans evidence-backed actions, executes only the
+human-approved ones (Act), persists them as **persistent actions** (Track), and
+re-runs the conflict evaluation when new information arrives so a still-open action
+can move `WAITING_FOR_INFORMATION → READY_FOR_REVIEW` (Re-evaluate). It never
+advances an action to `COMPLETED` on its own — that only comes from an approved
+Action Tool execution or a human. The flow is deterministic and offline, so the
+whole loop (including the Zoo Field Trip Example Scenario) runs in CI without
+Gemini/Vertex or Firestore credentials; the ADK `LlmAgent` in `pcca.root_agent`
+is the interactive entry point exposing the same tools.
+
 ## Architecture
 
 ```

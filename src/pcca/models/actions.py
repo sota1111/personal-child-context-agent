@@ -54,6 +54,12 @@ class Action:
     # Gmail draft id, ...). Set once the action is actually carried out.
     external_resource_id: str | None = None
     resolution: str | None = None
+    # Re-evaluation linkage: the School Information document that triggered this
+    # action, and the Conflict-Tool rule that fired. Together they let the flow
+    # re-run the conflict evaluation for this action and detect when new information
+    # resolves the missing/undetermined fact it is waiting on.
+    source_document_id: str | None = None
+    finding_rule: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
