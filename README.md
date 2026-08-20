@@ -110,3 +110,62 @@ ruff check . && mypy src && pytest       # CI runs the same
 ```
 
 See `.env.example` for configuration (no real secrets are committed).
+
+## Serving layer & Cloud Run deploy (SOT-2794)
+
+A FastAPI backend (`src/pcca/api/`) exposes the deterministic flow over HTTP,
+following the おたよりナビ (`toddler-private-rag`) backend structure:
+
+| Method & path | Purpose |
+| --- | --- |
+| `GET /health` | Unauthenticated Cloud Run startup/liveness probe → `{"status":"ok"}` |
+| `POST /api/auth/session` | email+password → Firebase Identity Toolkit REST → allow-list → signed session cookie |
+| `POST /api/auth/logout` · `GET /api/auth/me` | End / introspect the session |
+| `POST /api/documents:process` | Run Detect→…→Track for one document; returns the evidence-backed `FlowResult` |
+| `POST /api/actions:reevaluate` | Re-evaluate a child's pending actions |
+| `GET/PUT /api/children/{child_id}/context` | Read / replace the child's Personal Context |
+| `GET /api/children/{child_id}/actions` | List the child's tracked actions |
+
+**Auth:** every route except `/health` and `/api/auth/*` requires a valid session
+cookie. The cookie is `<owner_id>.<issued_at>.<hmac>` signed with `AUTH_SECRET`
+(`owner_id = sha256(email)`); `ALLOWED_USER_EMAILS` gates who may sign in. The
+serving layer keeps every safety invariant intact — no medical judgement, `unknown`
+never treated as safe, unapproved actions are tracked but never executed, and
+Evidence is retained on every response.
+
+Run locally:
+
+```bash
+pip install -e ".[serving]"
+AUTH_SECRET=$(python -c "import secrets;print(secrets.token_urlsafe(48))") \
+ALLOWED_USER_EMAILS=you@example.com \
+uvicorn pcca.api.app:app --host 0.0.0.0 --port 8080
+curl -s localhost:8080/health          # {"status":"ok"}
+```
+
+Deploy to Cloud Run (`sota-app-hub` / `asia-northeast1`, co-located with the
+Firestore from SOT-2739 to avoid cross-project IAM). One-time prerequisites:
+
+```bash
+# 1. Enable the required APIs on the project.
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  secretmanager.googleapis.com artifactregistry.googleapis.com \
+  aiplatform.googleapis.com --project=sota-app-hub
+
+# 2. Create the secrets (values are yours — Firebase Web API key comes from your
+#    Firebase project's web app; AUTH_SECRET is a strong random string).
+printf '%s' "$(python -c 'import secrets;print(secrets.token_urlsafe(48))')" \
+  | gcloud secrets create pcca-auth-secret --data-file=- --project=sota-app-hub
+printf '%s' "you@example.com" \
+  | gcloud secrets create pcca-allowed-emails --data-file=- --project=sota-app-hub
+printf '%s' "<firebase-web-api-key>" \
+  | gcloud secrets create pcca-firebase-api-key --data-file=- --project=sota-app-hub
+
+# 3. Deploy (Cloud Build builds the Dockerfile and pushes the image).
+GCP_PROJECT_ID=sota-app-hub bash scripts/deploy_cloudrun.sh
+```
+
+The deploy sets `PCCA_PERSISTENCE=firestore` and `GOOGLE_GENAI_USE_VERTEXAI=true`
+(Firestore + Gemini via ADC — no API keys in the image) and prints the service URL;
+verify with `curl -fsS <url>/health`. Frontend, WIF CI/CD, and Terraform are
+deliberately out of scope (future issues).

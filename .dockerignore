@@ -1,0 +1,16 @@
+# Keep the Cloud Build context small and reproducible (SOT-2794).
+.git
+.github
+.venv
+venv
+tests
+docs
+**/__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env
+.env.*
+!.env.example
+*.egg-info
