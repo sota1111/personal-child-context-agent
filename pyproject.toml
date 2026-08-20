@@ -22,6 +22,21 @@ serving = [
     "uvicorn[standard]>=0.30",
     "httpx>=0.27",
 ]
+# Real-document ingestion (SOT-2800). PDF text extraction is pure-python (CI-safe).
+documents = [
+    "pypdf>=4.0",
+]
+# Image / scanned-PDF OCR (SOT-2800). Needs the system tesseract + poppler binaries,
+# so it is kept out of the default CI install; the pipeline uses an injectable engine.
+ocr = [
+    "pytesseract>=0.3.10",
+    "Pillow>=10.0",
+    "pdf2image>=1.17",
+]
+# Cloud Vision OCR alternative (SOT-2800).
+vision = [
+    "google-cloud-vision>=3.7",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
@@ -30,6 +45,8 @@ dev = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
     "httpx>=0.27",
+    # PDF ingestion is pure-python, so exercise the real PDF path in CI.
+    "pypdf>=4.0",
 ]
 
 [tool.setuptools.packages.find]
