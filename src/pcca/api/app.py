@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from pcca.api import auth
 from pcca.api.routers import children as children_router
@@ -63,6 +64,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        # This is an API-only backend (no frontend); send browsers to the docs
+        # instead of a bare 404 at the root.
+        return RedirectResponse(url="/docs")
 
     @app.get("/health")
     def health_check() -> dict[str, str]:
