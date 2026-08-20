@@ -80,9 +80,14 @@ as `explicitly_absent`.
 
 ## Status
 
-Bootstrap skeleton (SOT-2738). Tools are interface stubs; the deterministic
-Conflict logic, Firestore persistence, Document extraction, Action execution, and
-the evaluation dataset are implemented in follow-up issues (SOT-2739 … SOT-2744).
+Bootstrap skeleton (SOT-2738) with the Firestore persistence layer & data models
+in place (SOT-2739): `ChildContext` / `SchoolInformation` / `Action` models, the
+Personal Context Model (`known_present` / `explicitly_absent` / `unknown`, where
+`unknown` is never treated as `explicitly_absent`), the `ActionStatus` enum, and an
+idempotency-key-guarded repository with both in-memory and Firestore backends
+(`PCCA_PERSISTENCE=memory|firestore`). Tools are still interface stubs; the
+deterministic Conflict logic, Document extraction, Action execution, and the
+evaluation dataset are implemented in follow-up issues (SOT-2740 … SOT-2744).
 
 ## Development
 
