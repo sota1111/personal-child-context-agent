@@ -26,14 +26,21 @@ Design (mirrors the other tools: deterministic, offline-testable, injectable):
 
 from __future__ import annotations
 
+import base64
 import hashlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from email.message import EmailMessage
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pcca.models import Action, ActionStatus, ActionType
 from pcca.persistence import Repository, get_repository
+
+if TYPE_CHECKING:  # httpx: optional (serving) dep — typed only, never imported at runtime here.
+    import httpx
+
+    from pcca.config import Settings
 
 # --- tool status constants (the ``status`` field of every tool's dict result) ------
 
@@ -107,6 +114,211 @@ class MockActionExecutor:
     def create_gmail_draft(self, request: GmailDraftRequest) -> str:
         # A draft id — deliberately no send path exists here or anywhere in the module.
         return _mock_id("draft", request.child_id, request.subject, request.body)
+
+
+# --- real Google executor (SOT-2799) ----------------------------------------------
+
+# Minimal OAuth scopes the real executor needs. Gmail is intentionally the
+# *compose* scope (create drafts) — NOT ``gmail.send`` — so there is no capability to
+# send even if a send path were ever added by mistake.
+GOOGLE_ACTION_SCOPES = (
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/tasks",
+)
+
+_CALENDAR_BASE = "https://www.googleapis.com/calendar/v3"
+_GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1"
+_TASKS_BASE = "https://tasks.googleapis.com/tasks/v1"
+
+
+class GoogleActionExecutor:
+    """Real Google side effects for approved actions — Calendar / Gmail draft / Tasks.
+
+    Same :class:`ActionExecutor` contract as :class:`MockActionExecutor`, so the
+    approval gate, idempotency and duplicate-prevention in :func:`_run` are unchanged;
+    this class only performs the actual external write and returns its resource id.
+
+    Design choices that keep it safe and testable:
+      * **Injectable HTTP + auth seam.** All calls go through an injected
+        ``httpx.Client`` and an ``access_token_provider`` callable, so unit tests drive
+        it with an ``httpx.MockTransport`` and no credentials. :meth:`from_settings`
+        wires the production client + Application Default Credentials lazily.
+      * **Gmail is draft-only.** It calls the Gmail *drafts* endpoint with the
+        ``gmail.compose`` scope; there is no send call anywhere, mirroring the module
+        invariant.
+      * **Calendar idempotency at the API layer.** The event is created with a
+        deterministic client-supplied id derived from the request, so retrying the same
+        approved event returns the same id instead of a duplicate (a ``409`` from the
+        API is treated as "already created").
+      * **Failures raise.** Non-2xx responses raise (``raise_for_status``); the tool
+        core catches it and records the action ``FAILED`` — it never crashes the agent.
+    """
+
+    def __init__(
+        self,
+        *,
+        http_client: httpx.Client,
+        access_token_provider: Callable[[], str],
+        calendar_id: str = "primary",
+        gmail_user_id: str = "me",
+        task_list_id: str = "@default",
+        gmail_recipient: str | None = None,
+    ) -> None:
+        self._client = http_client
+        self._token = access_token_provider
+        self.calendar_id = calendar_id
+        self.gmail_user_id = gmail_user_id
+        self.task_list_id = task_list_id
+        self.gmail_recipient = gmail_recipient
+
+    # -- construction from settings (lazy ADC + httpx) --
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> GoogleActionExecutor:
+        """Build a production executor: real ``httpx.Client`` + ADC bearer tokens."""
+
+        import httpx  # local import: optional serving dependency
+
+        return cls(
+            http_client=httpx.Client(timeout=30.0),
+            access_token_provider=_default_access_token_provider(),
+            calendar_id=settings.google_calendar_id,
+            gmail_user_id=settings.gmail_user_id,
+            task_list_id=settings.google_task_list_id,
+            gmail_recipient=settings.gmail_recipient,
+        )
+
+    # -- ActionExecutor interface --
+
+    def create_calendar_event(self, request: CalendarEventRequest) -> str:
+        event_id = _calendar_event_id(request)
+        body: dict[str, Any] = {
+            "id": event_id,
+            "summary": request.title,
+            "start": _event_time(request.start),
+            "end": _event_time(request.end),
+        }
+        resp = self._client.post(
+            f"{_CALENDAR_BASE}/calendars/{self.calendar_id}/events",
+            json=body,
+            headers=self._headers(),
+        )
+        # A deterministic id already used ⇒ the event exists; that IS the idempotent
+        # outcome, so return the known id rather than treating it as an error.
+        if resp.status_code == 409:
+            return event_id
+        resp.raise_for_status()
+        return str(resp.json().get("id") or event_id)
+
+    def create_reminder(self, request: ReminderRequest) -> str:
+        body: dict[str, Any] = {"title": request.text}
+        due = _to_rfc3339(request.due_at)
+        if due:
+            body["due"] = due
+        resp = self._client.post(
+            f"{_TASKS_BASE}/lists/{self.task_list_id}/tasks",
+            json=body,
+            headers=self._headers(),
+        )
+        resp.raise_for_status()
+        return str(resp.json()["id"])
+
+    def create_gmail_draft(self, request: GmailDraftRequest) -> str:
+        # Draft only — the drafts endpoint with the compose scope. No send path exists.
+        raw = _encode_rfc822(request.subject, request.body, self.gmail_recipient)
+        resp = self._client.post(
+            f"{_GMAIL_BASE}/users/{self.gmail_user_id}/drafts",
+            json={"message": {"raw": raw}},
+            headers=self._headers(),
+        )
+        resp.raise_for_status()
+        return str(resp.json()["id"])
+
+    # -- helpers --
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._token()}",
+            "Content-Type": "application/json",
+        }
+
+
+def _default_access_token_provider() -> Callable[[], str]:
+    """A token provider backed by Application Default Credentials (lazy import).
+
+    Refreshes the credential when it is missing/expired and returns the access token.
+    Kept out of import time so the core install (no google-auth transport) is unaffected.
+    """
+
+    import google.auth
+    from google.auth.transport.requests import Request
+
+    credentials, _ = google.auth.default(scopes=list(GOOGLE_ACTION_SCOPES))
+    request = Request()
+
+    def provider() -> str:
+        if not credentials.valid:
+            credentials.refresh(request)
+        return str(credentials.token)
+
+    return provider
+
+
+def _calendar_event_id(request: CalendarEventRequest) -> str:
+    """Deterministic, API-valid Calendar event id from the event identity.
+
+    Calendar ids must be base32hex (``0-9a-v``), 5–1024 chars; deriving it from the
+    same identity fields as the idempotency key makes retries return the same event.
+    """
+
+    parts = (request.child_id, request.title, request.start, request.end)
+    raw = "\x1f".join(_normalize(p) for p in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).digest()  # noqa: S324 - id derivation, not security
+    encoded = base64.b32hexencode(digest).decode("ascii").lower().rstrip("=")
+    return "pcca" + encoded
+
+
+def _event_time(value: str) -> dict[str, str]:
+    """Calendar start/end object: a timed ``dateTime`` or an all-day ``date``."""
+
+    return {"dateTime": value} if "T" in value else {"date": value}
+
+
+def _to_rfc3339(value: str) -> str | None:
+    """Normalise an ISO-8601 due value to the RFC3339 string the Tasks API expects."""
+
+    parsed = _parse_iso(value)
+    if parsed is None:
+        return None
+    return parsed.isoformat()
+
+
+def _encode_rfc822(subject: str, body: str, recipient: str | None) -> str:
+    """Base64url-encode an RFC 822 message for the Gmail drafts API (``message.raw``)."""
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    if recipient:
+        message["To"] = recipient
+    message.set_content(body)
+    return base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
+
+
+def build_action_executor(settings: Settings | None = None) -> ActionExecutor:
+    """Select the executor from configuration — default ``mock`` (no side effects).
+
+    ``PCCA_ACTION_EXECUTOR`` = ``google``/``real`` opts in to real Google calls; any
+    other value (incl. the default ``mock``) keeps the fully-offline mock executor.
+    """
+
+    if settings is None:
+        from pcca.config import Settings as _Settings
+
+        settings = _Settings.from_env()
+    if settings.action_executor.strip().lower() in {"google", "real"}:
+        return GoogleActionExecutor.from_settings(settings)
+    return MockActionExecutor()
 
 
 # --- public tools -----------------------------------------------------------------

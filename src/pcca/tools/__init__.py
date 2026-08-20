@@ -12,7 +12,9 @@ uses to decide when to call it.
 
 from pcca.tools.action_tools import (
     ActionExecutor,
+    GoogleActionExecutor,
     MockActionExecutor,
+    build_action_executor,
     create_calendar_event,
     create_gmail_draft,
     create_reminder,
@@ -32,4 +34,6 @@ __all__ = [
     "create_gmail_draft",
     "ActionExecutor",
     "MockActionExecutor",
+    "GoogleActionExecutor",
+    "build_action_executor",
 ]

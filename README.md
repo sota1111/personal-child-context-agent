@@ -61,7 +61,10 @@ is the interactive entry point exposing the same tools.
   Child Context. Prefers **deterministic logic** (e.g. time-overlap) over the LLM.
   Returns one of four classifications plus evidence.
 - **Action Tools** — Calendar (dedup-protected), Reminder, Gmail **Draft** (never
-  auto-sent; human-in-the-loop). Human approval + idempotency.
+  auto-sent; human-in-the-loop). Human approval + idempotency. Executes against an
+  injectable `ActionExecutor`: the default `MockActionExecutor` is fully offline;
+  set `PCCA_ACTION_EXECUTOR=google` to reflect approved actions into real Google
+  Calendar / Gmail drafts / Tasks (SOT-2799) — Gmail stays draft-only, no send path.
 - **Firestore** — persistent source of truth for `ChildContext`,
   `SchoolInformation`, `Actions`.
 

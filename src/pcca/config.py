@@ -32,6 +32,19 @@ class Settings:
     persistence: str = "memory"
     firestore_database: str = "(default)"
 
+    # Action execution (SOT-2799): "mock" (default, offline, no external side effect)
+    # or "google"/"real" to perform real Google Calendar / Gmail Draft / Tasks calls.
+    # The default stays "mock" so nothing touches the outside world without opt-in.
+    action_executor: str = "mock"
+    # Which Google resources the real executor writes to (used only when
+    # action_executor selects the real one). Defaults mirror the Google API defaults.
+    google_calendar_id: str = "primary"
+    gmail_user_id: str = "me"
+    google_task_list_id: str = "@default"
+    # Optional default "To" address for Gmail drafts (e.g. the school). When unset the
+    # draft is created without a recipient for the parent to fill in — still draft-only.
+    gmail_recipient: str | None = None
+
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
@@ -41,4 +54,9 @@ class Settings:
             model=os.getenv("PCCA_MODEL", "gemini-2.5-flash"),
             persistence=os.getenv("PCCA_PERSISTENCE", "memory"),
             firestore_database=os.getenv("FIRESTORE_DATABASE", "(default)"),
+            action_executor=os.getenv("PCCA_ACTION_EXECUTOR", "mock"),
+            google_calendar_id=os.getenv("PCCA_GOOGLE_CALENDAR_ID", "primary"),
+            gmail_user_id=os.getenv("PCCA_GMAIL_USER_ID", "me"),
+            google_task_list_id=os.getenv("PCCA_GOOGLE_TASK_LIST_ID", "@default"),
+            gmail_recipient=os.getenv("PCCA_GMAIL_RECIPIENT") or None,
         )
