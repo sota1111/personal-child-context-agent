@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pcca.config import Settings
 from pcca.flow import AgentFlow
 from pcca.persistence import Repository, get_repository
+from pcca.tools.action_tools import ActionExecutor, build_action_executor
 
 
 @lru_cache(maxsize=1)
@@ -22,7 +24,18 @@ def get_shared_repository() -> Repository:
     return get_repository()
 
 
+@lru_cache(maxsize=1)
+def get_shared_executor() -> ActionExecutor:
+    """Process-wide action executor, selected from configuration (default: mock).
+
+    Built once (a real Google executor holds an HTTP client + credentials) and reused
+    across requests, like the repository. ``PCCA_ACTION_EXECUTOR`` opts into real calls.
+    """
+
+    return build_action_executor(Settings.from_env())
+
+
 def get_flow() -> AgentFlow:
     """A request-scoped flow over the shared repository (FastAPI dependency)."""
 
-    return AgentFlow(repository=get_shared_repository())
+    return AgentFlow(repository=get_shared_repository(), executor=get_shared_executor())
