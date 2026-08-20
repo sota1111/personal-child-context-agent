@@ -28,6 +28,18 @@ class Settings:
     location: str = "us-central1"
     model: str = "gemini-2.5-flash"
 
+    # Document Tool (SOT-2800): how real documents are turned into structured info.
+    # Extractor: "deterministic" (default, offline label parser) or "vertex"/"gemini"
+    # to route messy documents through a Gemini/Vertex structured extractor. The LLM
+    # path is validated against the same schema + verbatim-evidence rules as the
+    # deterministic path, so it can never fabricate values. Default stays deterministic
+    # so nothing calls a model without opt-in.
+    document_extractor: str = "deterministic"
+    # OCR engine for image / scanned-PDF input: "none" (default), "tesseract", or
+    # "vision" (Cloud Vision). Left "none" so nothing requires OCR binaries/creds by
+    # default — image input without an engine is reported as processing_failed.
+    document_ocr: str = "none"
+
     # Persistence: "memory" (default, no auth) or "firestore" (SOT-2739).
     persistence: str = "memory"
     firestore_database: str = "(default)"
@@ -52,6 +64,8 @@ class Settings:
             project=os.getenv("GOOGLE_CLOUD_PROJECT"),
             location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
             model=os.getenv("PCCA_MODEL", "gemini-2.5-flash"),
+            document_extractor=os.getenv("PCCA_DOCUMENT_EXTRACTOR", "deterministic"),
+            document_ocr=os.getenv("PCCA_DOCUMENT_OCR", "none"),
             persistence=os.getenv("PCCA_PERSISTENCE", "memory"),
             firestore_database=os.getenv("FIRESTORE_DATABASE", "(default)"),
             action_executor=os.getenv("PCCA_ACTION_EXECUTOR", "mock"),

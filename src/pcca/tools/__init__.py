@@ -21,13 +21,27 @@ from pcca.tools.action_tools import (
 )
 from pcca.tools.conflict_tool import evaluate_conflict
 from pcca.tools.document_tool import (
+    OcrEngine,
+    StructuredExtractor,
+    TesseractOcrEngine,
+    VertexStructuredExtractor,
+    VisionOcrEngine,
+    build_ocr_engine,
     build_school_information,
+    build_structured_extractor,
     extract_school_information,
 )
 
 __all__ = [
     "extract_school_information",
     "build_school_information",
+    "build_ocr_engine",
+    "build_structured_extractor",
+    "OcrEngine",
+    "TesseractOcrEngine",
+    "VisionOcrEngine",
+    "StructuredExtractor",
+    "VertexStructuredExtractor",
     "evaluate_conflict",
     "create_calendar_event",
     "create_reminder",
