@@ -91,6 +91,8 @@ def _action_to_doc(action: Action) -> dict[str, Any]:
         "idempotency_key": action.idempotency_key,
         "external_resource_id": action.external_resource_id,
         "resolution": action.resolution,
+        "source_document_id": action.source_document_id,
+        "finding_rule": action.finding_rule,
         "created_at": action.created_at,
         "updated_at": action.updated_at,
     }
@@ -109,6 +111,8 @@ def _action_from_doc(doc: dict[str, Any]) -> Action:
         idempotency_key=doc.get("idempotency_key"),
         external_resource_id=doc.get("external_resource_id"),
         resolution=doc.get("resolution"),
+        source_document_id=doc.get("source_document_id"),
+        finding_rule=doc.get("finding_rule"),
         created_at=doc.get("created_at"),
         updated_at=doc.get("updated_at"),
     )

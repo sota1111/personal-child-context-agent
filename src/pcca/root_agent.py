@@ -16,6 +16,7 @@ from typing import Any, cast
 from google.adk.agents import LlmAgent
 
 from pcca.config import Settings
+from pcca.flow import AgentFlow, build_flow
 from pcca.tools import (
     create_calendar_event,
     create_gmail_draft,
@@ -23,6 +24,15 @@ from pcca.tools import (
     evaluate_conflict,
     extract_school_information,
 )
+
+__all__ = [
+    "ROOT_AGENT_INSTRUCTION",
+    "ROOT_AGENT_TOOLS",
+    "AgentFlow",
+    "build_flow",
+    "build_root_agent",
+    "root_agent",
+]
 
 ROOT_AGENT_INSTRUCTION = """\
 You are the Personal Child Context Agent. Reconcile generic school information with
