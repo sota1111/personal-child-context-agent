@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets / credentials (never commit)
+*service-account*.json
+*credentials*.json
+application_default_credentials.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
