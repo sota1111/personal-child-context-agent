@@ -10,18 +10,11 @@ from pcca.tools import (
     create_calendar_event,
     create_gmail_draft,
     create_reminder,
-    evaluate_conflict,
 )
 
-# The Document Tool is implemented (SOT-2740); its behaviour is covered by
-# tests/test_document_tool.py. The tools below are still interface stubs.
-
-
-def test_conflict_tool_stub_shape() -> None:
-    out = evaluate_conflict("child-a", "doc-1")
-    assert out["status"] == "not_implemented"
-    # No fabricated classification in the skeleton.
-    assert out["classification"] is None
+# The Document Tool (SOT-2740) and Conflict Tool (SOT-2741) are implemented; their
+# behaviour is covered by tests/test_document_tool.py and tests/test_conflict_tool.py.
+# The Action Tools below are still interface stubs (SOT-2742).
 
 
 def test_action_tools_stub_shapes() -> None:
