@@ -3,13 +3,16 @@
 Implementation status:
   - Document Tool  → implemented (SOT-2740)
   - Conflict Tool  → implemented (SOT-2741)
-  - Action Tools   → interface stubs (SOT-2742)
+  - Action Tools   → implemented (SOT-2742): approval gate, idempotency/duplicate
+    prevention, Gmail draft-only, injectable executor seam
 
 Each tool is a plain function (ADK function-tool) with a docstring the Root Agent
 uses to decide when to call it.
 """
 
 from pcca.tools.action_tools import (
+    ActionExecutor,
+    MockActionExecutor,
     create_calendar_event,
     create_gmail_draft,
     create_reminder,
@@ -27,4 +30,6 @@ __all__ = [
     "create_calendar_event",
     "create_reminder",
     "create_gmail_draft",
+    "ActionExecutor",
+    "MockActionExecutor",
 ]

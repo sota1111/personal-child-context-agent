@@ -12,17 +12,22 @@ from pcca.tools import (
     create_reminder,
 )
 
-# The Document Tool (SOT-2740) and Conflict Tool (SOT-2741) are implemented; their
-# behaviour is covered by tests/test_document_tool.py and tests/test_conflict_tool.py.
-# The Action Tools below are still interface stubs (SOT-2742).
+# All tools are implemented: Document (SOT-2740), Conflict (SOT-2741), Action
+# (SOT-2742). Full behaviour lives in the per-tool test modules; this module keeps a
+# thin interface smoke test that the wired tools default to the safe, no-side-effect
+# path (human approval required) so the Root Agent wiring can never silently regress.
 
 
-def test_action_tools_stub_shapes() -> None:
-    assert create_calendar_event("child-a", "Zoo", "2026-09-18T10:30", "2026-09-18T14:30")[
-        "status"
-    ] == "not_implemented"
-    assert create_reminder("child-a", "Confirm meds", "before_event")["status"] == "not_implemented"
+def test_action_tools_default_to_pending_approval() -> None:
+    # Called with the default (in-memory) backend and no approval: no external effect.
+    cal = create_calendar_event("child-a", "Zoo", "2026-09-18T10:30", "2026-09-18T14:30")
+    assert cal["status"] == "pending_approval"
+    assert cal["external_resource_id"] is None
+
+    rem = create_reminder("child-a", "Confirm meds", "2026-09-17T09:00")
+    assert rem["status"] == "pending_approval"
+
     draft = create_gmail_draft("child-a", "Allergen info", "Please provide ingredients.")
-    assert draft["status"] == "not_implemented"
-    # Gmail stays draft-only; the stub never claims to have sent anything.
-    assert "draft-only" in draft["detail"]
+    assert draft["status"] == "pending_approval"
+    # Gmail stays draft-only; it never claims to have sent anything.
+    assert draft["sent"] is False
