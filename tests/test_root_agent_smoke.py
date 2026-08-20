@@ -27,7 +27,9 @@ def test_build_root_agent_wires_all_tools() -> None:
     assert len(ROOT_AGENT_TOOLS) == 5
 
 
-def test_root_agent_can_call_a_tool_stub() -> None:
+def test_root_agent_can_call_the_document_tool() -> None:
     # The wired Python callables are directly invocable (Detect step entry point).
-    out = ROOT_AGENT_TOOLS[0]("doc-ref")
-    assert out["status"] == "not_implemented"
+    # ROOT_AGENT_TOOLS[0] is the (implemented) Document Tool.
+    out = ROOT_AGENT_TOOLS[0]("Event: Zoo Field Trip\nDate: 2026-09-18\n")
+    assert out["status"] == "parsed"
+    assert out["structured_information"]["event"] == "Zoo Field Trip"
