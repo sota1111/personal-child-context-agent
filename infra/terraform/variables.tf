@@ -136,3 +136,31 @@ variable "cors_origins" {
   type        = string
   default     = ""
 }
+
+# --- Keyless CI/CD deploy: Workload Identity Federation (SOT-2802) ------------
+variable "deploy_service_account_id" {
+  description = "Account id (local part) for the GitHub Actions deploy service account."
+  type        = string
+  default     = "pcca-github-deployer"
+}
+
+variable "wif_pool_id" {
+  description = "Workload Identity Pool id for GitHub Actions OIDC federation."
+  type        = string
+  default     = "github-actions"
+}
+
+variable "wif_provider_id" {
+  description = "Workload Identity Pool Provider id for the GitHub OIDC issuer."
+  type        = string
+  default     = "github-oidc"
+}
+
+variable "github_repository" {
+  description = <<-EOT
+    `owner/repo` allowed to exchange its GitHub OIDC token for the deploy SA. The
+    WIF provider's attribute_condition restricts federation to this repository only.
+  EOT
+  type        = string
+  default     = "sota1111/personal-child-context-agent"
+}

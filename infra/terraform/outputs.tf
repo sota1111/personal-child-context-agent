@@ -23,3 +23,15 @@ output "secret_ids" {
   description = "Secret Manager secret ids managed by this stack (values not included)."
   value       = [for s in google_secret_manager_secret.secrets : s.secret_id]
 }
+
+# --- Keyless CI/CD deploy outputs (SOT-2802) ---------------------------------
+# Copy these into the GitHub repo secrets consumed by deploy-cloudrun.yml.
+output "deploy_service_account_email" {
+  description = "GitHub Actions deploy SA email (set as GitHub secret GCP_SERVICE_ACCOUNT)."
+  value       = google_service_account.deploy.email
+}
+
+output "workload_identity_provider" {
+  description = "Full WIF provider resource name (set as GitHub secret GCP_WORKLOAD_IDENTITY_PROVIDER)."
+  value       = google_iam_workload_identity_pool_provider.github.name
+}

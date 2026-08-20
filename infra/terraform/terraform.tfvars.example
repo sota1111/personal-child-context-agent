@@ -21,3 +21,11 @@ firestore_database = "pcca"
 
 # Optional CORS allow-list (empty = env var omitted).
 # cors_origins = "https://your-frontend.example.com"
+
+# --- Keyless CI/CD deploy (WIF, SOT-2802) -----------------------------------
+# The GitHub repo allowed to federate; must match owner/repo exactly.
+github_repository = "sota1111/personal-child-context-agent"
+# WIF / deploy SA identifiers (defaults shown).
+# deploy_service_account_id = "pcca-github-deployer"
+# wif_pool_id               = "github-actions"
+# wif_provider_id           = "github-oidc"

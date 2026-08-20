@@ -1,0 +1,166 @@
+name: Deploy to Cloud Run
+
+# SOT-2802: production deploy is gated on CI success. It does NOT trigger directly
+# on push to main — it runs only after the "CI" workflow completes successfully on
+# main (ruff + mypy + pytest). A failing lint/typecheck/test therefore blocks the
+# deploy. `workflow_dispatch` stays for manual/emergency deploys.
+#
+# Follows the おたよりナビ (toddler-private-rag) structure: keyless auth via Workload
+# Identity Federation (no SA JSON key in the repo), build & push the backend image to
+# Artifact Registry, deploy a CANARY revision with NO traffic + a `canary` tag,
+# health-check it on its tag URL, then promote to 100% traffic OR remove the canary
+# and fail the job (automatic rollback — production keeps serving the previous
+# revision).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for keyless WIF token exchange
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Only deploy when the triggering CI run succeeded (or on a manual dispatch).
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          github.event.workflow_run.conclusion == 'success' }}
+    env:
+      REGION: ${{ secrets.GCP_REGION }}
+      PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+      SERVICE: ${{ secrets.CLOUD_RUN_SERVICE_BACKEND }}
+    steps:
+      - name: Resolve deploy commit
+        id: sha
+        run: |
+          # For workflow_run, build/tag the exact SHA that CI validated — not the
+          # default-branch head (which may have advanced). Fall back to github.sha
+          # for a manual dispatch.
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          [ -z "$SHA" ] && SHA="${{ github.sha }}"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # Keyless: exchange the GitHub OIDC token for short-lived GCP creds.
+          # No service-account JSON key is stored in the repository.
+          token_format: "access_token"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      # ---- Backend image: build + push (tagged with the validated commit SHA) ----
+      - name: Build backend image
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/${{ secrets.CLOUD_RUN_SERVICE_BACKEND }}
+        run: |
+          docker build -f Dockerfile \
+            -t "$IMAGE:${{ steps.sha.outputs.sha }}" \
+            -t "$IMAGE:latest" \
+            .
+
+      - name: Push backend image
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/${{ secrets.CLOUD_RUN_SERVICE_BACKEND }}
+        run: |
+          docker push "$IMAGE:${{ steps.sha.outputs.sha }}"
+          docker push "$IMAGE:latest"
+
+      # ---- Canary deploy: new revision with NO traffic + a `canary` tag ----
+      - name: Deploy backend to Cloud Run (canary, no traffic)
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPOSITORY }}/${{ secrets.CLOUD_RUN_SERVICE_BACKEND }}
+          RUNTIME_SA: ${{ secrets.CLOUD_RUN_RUNTIME_SA }}
+          VERTEX_LOCATION: ${{ secrets.VERTEX_LOCATION }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+        run: |
+          set -euo pipefail
+          # Adopt the least-privilege runtime SA when configured.
+          SA_FLAG=""
+          [ -n "$RUNTIME_SA" ] && SA_FLAG="--service-account=$RUNTIME_SA"
+          # Optional overrides (fall back to the deploy_cloudrun.sh defaults).
+          VLOC="${VERTEX_LOCATION:-us-central1}"
+          ENV_VARS="APP_ENV=production,LOG_LEVEL=INFO,PCCA_PERSISTENCE=firestore"
+          ENV_VARS="$ENV_VARS,GOOGLE_GENAI_USE_VERTEXAI=true"
+          ENV_VARS="$ENV_VARS,GOOGLE_CLOUD_PROJECT=$PROJECT"
+          ENV_VARS="$ENV_VARS,GOOGLE_CLOUD_LOCATION=$VLOC"
+          ENV_VARS="$ENV_VARS,FIRESTORE_DATABASE=pcca"
+          [ -n "${CORS_ORIGINS:-}" ] && ENV_VARS="$ENV_VARS,CORS_ORIGINS=$CORS_ORIGINS"
+          # Deploy the new revision with NO traffic and a `canary` tag so it can be
+          # health-checked on its dedicated tag URL before promotion.
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE:${{ steps.sha.outputs.sha }}" \
+            --region "$REGION" \
+            --project "$PROJECT" \
+            --platform managed \
+            --allow-unauthenticated \
+            --no-traffic \
+            --tag canary \
+            $SA_FLAG \
+            --port 8080 \
+            --set-secrets "AUTH_SECRET=pcca-auth-secret:latest,ALLOWED_USER_EMAILS=pcca-allowed-emails:latest,FIREBASE_API_KEY=pcca-firebase-api-key:latest" \
+            --set-env-vars "$ENV_VARS" \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --min-instances 0 \
+            --max-instances 4 \
+            --concurrency 80
+
+      # ---- Health-check the canary; promote on success, roll back on failure ----
+      - name: Canary health check + promote or rollback
+        run: |
+          set -euo pipefail
+          # Derive the `--tag canary` URL deterministically from the service base URL.
+          # Cloud Run tag URLs are always `https://<tag>---<base-host>`. (Note:
+          # `gcloud run services describe` does NOT support --filter, only `list` does,
+          # so we do not query traffic tags here.)
+          CANARY_REV=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT" \
+            --format='value(status.latestCreatedRevisionName)')
+          CANARY_URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT" \
+            --format="value(status.url)" | sed 's#https://#https://canary---#')
+          echo "Canary revision: $CANARY_REV"
+          echo "Canary URL: $CANARY_URL"
+
+          # Health-check the canary. Retry to absorb cold-start.
+          OK=0
+          for i in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$CANARY_URL/health" || echo 000)
+            echo "Attempt $i: /health -> $CODE"
+            if [ "$CODE" = "200" ]; then OK=1; break; fi
+            sleep 10
+          done
+
+          if [ "$OK" = "1" ]; then
+            echo "Canary healthy -> promoting to 100% traffic."
+            gcloud run services update-traffic "$SERVICE" --region "$REGION" --project "$PROJECT" \
+              --to-latest
+            # Drop the canary tag now that this revision serves all traffic.
+            gcloud run services update-traffic "$SERVICE" --region "$REGION" --project "$PROJECT" \
+              --remove-tags canary || true
+          else
+            echo "::error::Canary health check FAILED. Production traffic stays on the previous revision (automatic rollback). Removing the failed canary from routing."
+            gcloud run services update-traffic "$SERVICE" --region "$REGION" --project "$PROJECT" \
+              --remove-tags canary || true
+            exit 1
+          fi

@@ -170,8 +170,25 @@ GCP_PROJECT_ID=sota-app-hub bash scripts/deploy_cloudrun.sh
 
 The deploy sets `PCCA_PERSISTENCE=firestore` and `GOOGLE_GENAI_USE_VERTEXAI=true`
 (Firestore + Gemini via ADC — no API keys in the image) and prints the service URL;
-verify with `curl -fsS <url>/health`. Frontend, WIF CI/CD, and Terraform are
-deliberately out of scope (future issues).
+verify with `curl -fsS <url>/health`.
+
+### Automated deploy — gated canary + auto-rollback (SOT-2802)
+
+`.github/workflows/deploy-cloudrun.yml` promotes `scripts/deploy_cloudrun.sh` to
+CI/CD, following the おたよりナビ structure:
+
+- **Gated on CI** — triggers via `workflow_run` only after the **CI** workflow
+  succeeds on `main` (a failing ruff/mypy/pytest blocks the deploy); `workflow_dispatch`
+  stays for manual deploys.
+- **Keyless (WIF)** — authenticates with **Workload Identity Federation**; no
+  service-account JSON key is stored in the repo. Provisioned by
+  `infra/terraform/wif.tf` (see that README for the GitHub secrets to set).
+- **Canary + rollback** — deploys the new revision with `--no-traffic --tag canary`,
+  health-checks the canary's `/health` tag URL (retried for cold-start), then either
+  promotes it to 100 % traffic or removes the canary and **fails the job** so
+  production keeps serving the previous revision.
+
+Terraform (`infra/terraform/`, SOT-2803) codifies the infra including the WIF setup.
 
 ## Login setup — first real sign-in (SOT-2801)
 
