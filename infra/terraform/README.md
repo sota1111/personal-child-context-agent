@@ -27,8 +27,48 @@ codifying what was previously provisioned by hand with `gcloud`
 | `secrets.tf` | Secret Manager containers (no versions) |
 | `firestore.tf` | Named Firestore database `pcca` |
 | `cloud_run.tf` | Cloud Run v2 service + public invoker |
-| `outputs.tf` | Service URL, SA email, db name, secret ids |
+| `wif.tf` | Keyless CI/CD: deploy SA + Workload Identity Federation pool/provider (SOT-2802) |
+| `outputs.tf` | Service URL, SA email, db name, secret ids, WIF provider + deploy SA |
 | `terraform.tfvars.example` | Copy to `terraform.tfvars` and edit |
+
+## Keyless CI/CD deploy — Workload Identity Federation (SOT-2802)
+
+`wif.tf` provisions everything the `.github/workflows/deploy-cloudrun.yml` gated
+canary deploy needs to authenticate **without a service-account JSON key**:
+
+- a dedicated **deploy service account** (`pcca-github-deployer`) with the minimal
+  roles to build/push the image and deploy Cloud Run (`run.admin`,
+  `artifactregistry.writer`, `iam.serviceAccountUser`, `cloudbuild.builds.editor`,
+  `storage.admin`) plus `actAs` on the runtime SA;
+- a **Workload Identity Pool + GitHub OIDC provider**, whose `attribute_condition`
+  restricts token exchange to `var.github_repository` only;
+- a `workloadIdentityUser` binding letting that repo impersonate the deploy SA.
+
+After `terraform apply`, wire the outputs into the repo's **GitHub Actions secrets**
+(Settings → Secrets and variables → Actions). No key material is downloaded:
+
+| GitHub secret | Value |
+| --- | --- |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `terraform output -raw workload_identity_provider` |
+| `GCP_SERVICE_ACCOUNT` | `terraform output -raw deploy_service_account_email` |
+| `GCP_PROJECT_ID` | `gen-lang-client-0243034020` |
+| `GCP_REGION` | `asia-northeast1` |
+| `ARTIFACT_REGISTRY_REPOSITORY` | Artifact Registry repo hosting the backend image |
+| `CLOUD_RUN_SERVICE_BACKEND` | `personal-child-context-agent-backend` |
+| `CLOUD_RUN_RUNTIME_SA` | `terraform output -raw runtime_service_account_email` |
+| `VERTEX_LOCATION` *(optional)* | Vertex location, default `us-central1` |
+| `CORS_ORIGINS` *(optional)* | frontend origin allow-list |
+
+Import addresses for the WIF resources (when adopting an already-federated project):
+
+```bash
+terraform import google_service_account.deploy \
+  "projects/${PROJECT}/serviceAccounts/pcca-github-deployer@${PROJECT}.iam.gserviceaccount.com"
+terraform import google_iam_workload_identity_pool.github \
+  "projects/${PROJECT}/locations/global/workloadIdentityPools/github-actions"
+terraform import google_iam_workload_identity_pool_provider.github \
+  "projects/${PROJECT}/locations/global/workloadIdentityPools/github-actions/providers/github-oidc"
+```
 
 ## Secret values (out-of-band — never in Terraform)
 
