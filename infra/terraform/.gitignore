@@ -1,0 +1,16 @@
+# Terraform state, plans, and local overrides must never be committed (may contain
+# rendered secret values / resource ids). Keep only the .tf source + examples.
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+# Real variable files (the .example is committed; real ones are not).
+terraform.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

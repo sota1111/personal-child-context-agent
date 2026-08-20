@@ -1,0 +1,23 @@
+# Example variable overrides for the PCCA infra stack (SOT-2803).
+# Copy to terraform.tfvars and adjust. Secret VALUES are never set here — they are
+# provisioned out-of-band (see README "Secret values").
+
+project_id      = "gen-lang-client-0243034020"
+region          = "asia-northeast1"
+vertex_location = "us-central1"
+
+service_name       = "personal-child-context-agent-backend"
+firestore_database = "pcca"
+
+# Point at the image tag/digest the live revision currently runs (see README import).
+# container_image = "gcr.io/gen-lang-client-0243034020/personal-child-context-agent-backend:latest"
+
+# Scale / concurrency (defaults shown).
+# min_instances = 0
+# max_instances = 4
+# concurrency   = 80
+# cpu           = "1"
+# memory        = "512Mi"
+
+# Optional CORS allow-list (empty = env var omitted).
+# cors_origins = "https://your-frontend.example.com"
