@@ -172,3 +172,68 @@ The deploy sets `PCCA_PERSISTENCE=firestore` and `GOOGLE_GENAI_USE_VERTEXAI=true
 (Firestore + Gemini via ADC — no API keys in the image) and prints the service URL;
 verify with `curl -fsS <url>/health`. Frontend, WIF CI/CD, and Terraform are
 deliberately out of scope (future issues).
+
+## Login setup — first real sign-in (SOT-2801)
+
+`/api/auth/session` verifies email/password server-side against **Firebase Identity
+Toolkit REST**, so a sign-in only works once a Firebase user exists and the two
+auth secrets match. After the Cloud Run deploy above, complete these one-time steps
+to make a real login work (`<url>` = the deployed service URL from the deploy step).
+
+**1. Enable the email/password provider** in the Firebase project (`sota-app-hub`):
+Firebase Console → *Authentication* → *Sign-in method* → enable **Email/Password**.
+
+**2. Create the user** (the human owns the real address + password — never commit or
+log it). Either in the Console (*Authentication → Users → Add user*), or with the
+Firebase CLI / Admin SDK, e.g.:
+
+```bash
+# Admin SDK (service-account credentials required). Set a strong password interactively.
+python - <<'PY'
+import getpass, firebase_admin
+from firebase_admin import auth
+firebase_admin.initialize_app()  # uses GOOGLE_APPLICATION_CREDENTIALS / ADC
+auth.create_user(email="you@example.com", password=getpass.getpass("New password: "))
+print("created")
+PY
+```
+
+**3. Make the secrets consistent** with that user. The allow-list must contain the
+email, and the Firebase Web API key must belong to the same project (Firebase
+Console → *Project settings → General → Web API Key*):
+
+```bash
+# Add/replace the allowed email(s) — comma-separated, no spaces.
+printf '%s' "you@example.com" \
+  | gcloud secrets versions add pcca-allowed-emails --data-file=- --project=sota-app-hub
+# Point pcca-firebase-api-key at the project's Web API key if not already set.
+printf '%s' "<firebase-web-api-key>" \
+  | gcloud secrets versions add pcca-firebase-api-key --data-file=- --project=sota-app-hub
+# The service reads secrets at startup — redeploy (or roll a new revision) to pick up changes:
+GCP_PROJECT_ID=sota-app-hub bash scripts/deploy_cloudrun.sh
+```
+
+**4. Verify the real login** (allowed email → cookie → protected `200`; wrong
+password → `401`; non-allow-listed email → `403`). Use the helper, which never
+prints passwords:
+
+```bash
+BASE_URL=<url> LOGIN_EMAIL=you@example.com \
+  WRONG_PASSWORD=definitely-wrong \
+  bash scripts/login_smoke_test.sh
+# expect: /health 200, session 200, /api/auth/me 200, wrong password 401
+```
+
+Manual equivalent with `curl` (cookie jar → protected route):
+
+```bash
+curl -sS -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"<password>"}' \
+  <url>/api/auth/session                       # -> {"success":true,...} + Set-Cookie
+curl -sS -o /dev/null -w '%{http_code}\n' -b cookies.txt <url>/api/auth/me   # -> 200
+```
+
+> The user-provisioning step (2) and the live verification (4) require the human's
+> real credentials and an enabled Firebase project, so they are performed by a human
+> operator; this repo ships the exact steps plus `scripts/login_smoke_test.sh` to make
+> that a one-command check.
