@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+
+# test / build artifacts
+playwright-report
+test-results
+node_modules/.tmp
+
+# editor
+.vscode/*
+.idea
+.DS_Store
