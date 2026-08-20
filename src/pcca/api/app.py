@@ -10,16 +10,19 @@ from __future__ import annotations
 
 import logging
 import os
+import time
+import traceback
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from pcca.api import auth
 from pcca.api.routers import children as children_router
 from pcca.api.routers import flow as flow_router
+from pcca.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     """Build the FastAPI app with health, auth, and authenticated flow/child routes."""
 
+    # Structured, PII-safe logging (SOT-2804). Idempotent — safe under repeated
+    # create_app() calls in tests.
+    configure_logging()
+
     app = FastAPI(title="Personal Child Context Agent API", lifespan=_lifespan)
 
     app.add_middleware(
@@ -64,6 +71,44 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def access_log(request: Request, call_next):
+        # Structured access log for latency/error-rate monitoring. Logs only method,
+        # path, status, and duration — never the request/response body, query values,
+        # or headers (which can carry Personal Context or credentials).
+        start = time.monotonic()
+        response = await call_next(request)
+        duration_ms = round((time.monotonic() - start) * 1000, 1)
+        logger.info(
+            "request",
+            extra={
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "http_status": response.status_code,
+                "duration_ms": duration_ms,
+            },
+        )
+        return response
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        # Log the failure for observability without leaking any request payload. We log
+        # the exception *type* and the stack *frames* (file/line/function) — but never
+        # the exception's message/args or a traceback line that renders them, since an
+        # exception raised over request input (e.g. a validation echo) could carry a
+        # child's Personal Context. Frames contain source locations, not runtime values.
+        frames = "".join(traceback.format_tb(exc.__traceback__))
+        logger.error(
+            "unhandled exception",
+            extra={
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "error_type": type(exc).__name__,
+                "stack": frames,
+            },
+        )
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:
