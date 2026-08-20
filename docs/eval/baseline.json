@@ -1,0 +1,322 @@
+{
+  "summary": {
+    "scenarios_total": 19,
+    "scenarios_passed": 19,
+    "categories_covered": 16
+  },
+  "metrics": [
+    {
+      "name": "conflict_recall",
+      "score": 1.0,
+      "numerator": 15,
+      "denominator": 15,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "conflict_precision",
+      "score": 1.0,
+      "numerator": 15,
+      "denominator": 15,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "evidence_accuracy",
+      "score": 1.0,
+      "numerator": 15.0,
+      "denominator": 15.0,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "abstention_accuracy",
+      "score": 1.0,
+      "numerator": 17.0,
+      "denominator": 17.0,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "personalization_accuracy",
+      "score": 1.0,
+      "numerator": 4.0,
+      "denominator": 4.0,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "unsupported_inference_rate",
+      "score": 0.0,
+      "numerator": 0.0,
+      "denominator": 1.0,
+      "higher_is_better": false,
+      "notes": [
+        "unsupported_inference_asthma: ungrounded inference []"
+      ]
+    },
+    {
+      "name": "action_accuracy",
+      "score": 1.0,
+      "numerator": 47.0,
+      "denominator": 47.0,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "action_completion_accuracy",
+      "score": 1.0,
+      "numerator": 9.0,
+      "denominator": 9.0,
+      "higher_is_better": true,
+      "notes": []
+    },
+    {
+      "name": "document_processing_accuracy",
+      "score": 1.0,
+      "numerator": 19.0,
+      "denominator": 19.0,
+      "higher_is_better": true,
+      "notes": []
+    }
+  ],
+  "coverage": {
+    "clear_conflict": 1,
+    "no_conflict": 1,
+    "missing_personal_context": 1,
+    "missing_school_information": 2,
+    "stale_personal_context": 1,
+    "source_contradiction": 1,
+    "false_positive": 1,
+    "unsupported_inference": 1,
+    "personalization": 3,
+    "pending_resolved": 1,
+    "pending_unresolved": 1,
+    "duplicate_action": 1,
+    "document_processing_failure": 1,
+    "action_tool_failure": 1,
+    "region_us": 1,
+    "region_au": 1
+  },
+  "scenarios": [
+    {
+      "scenario_id": "clear_conflict_medication",
+      "category": "clear_conflict",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "medication_schedule_overlap"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "no_conflict",
+      "category": "no_conflict",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "NO_RELEVANT_MATCH_FOUND",
+      "fired_rules": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "missing_personal_context",
+      "category": "missing_personal_context",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "INFORMATION_MISSING",
+      "fired_rules": [
+        "missing_personal_context"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "missing_school_information",
+      "category": "missing_school_information",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "INFORMATION_MISSING",
+      "fired_rules": [
+        "allergen_ingredients_unconfirmed"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "missing_event_time",
+      "category": "missing_school_information",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "INFORMATION_MISSING",
+      "fired_rules": [
+        "medication_overlap_undetermined"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "stale_personal_context",
+      "category": "stale_personal_context",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "medication_schedule_overlap",
+        "stale_personal_context"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "source_contradiction",
+      "category": "source_contradiction",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "CLARIFICATION_REQUIRED",
+      "fired_rules": [
+        "source_contradiction"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "false_positive_negated_allergen",
+      "category": "false_positive",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "NO_RELEVANT_MATCH_FOUND",
+      "fired_rules": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "unsupported_inference_asthma",
+      "category": "unsupported_inference",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "NO_RELEVANT_MATCH_FOUND",
+      "fired_rules": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "personalization_A_known_present",
+      "category": "personalization",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "explicit_allergen_match"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "personalization_B_explicitly_absent",
+      "category": "personalization",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "NO_RELEVANT_MATCH_FOUND",
+      "fired_rules": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "personalization_C_unknown",
+      "category": "personalization",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "INFORMATION_MISSING",
+      "fired_rules": [
+        "missing_allergen_info"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "pending_resolved",
+      "category": "pending_resolved",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "INFORMATION_MISSING",
+      "fired_rules": [
+        "missing_allergen_info"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "pending_unresolved",
+      "category": "pending_unresolved",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "INFORMATION_MISSING",
+      "fired_rules": [
+        "missing_allergen_info"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "duplicate_action",
+      "category": "duplicate_action",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "medication_schedule_overlap"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "document_processing_failure",
+      "category": "document_processing_failure",
+      "region": null,
+      "detect_status": "processing_failed",
+      "overall": "NO_RELEVANT_MATCH_FOUND",
+      "fired_rules": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "action_tool_failure",
+      "category": "action_tool_failure",
+      "region": null,
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "medication_schedule_overlap"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "us_field_trip_allergen",
+      "category": "region_us",
+      "region": "US",
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "explicit_allergen_match"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "scenario_id": "au_excursion_trigger",
+      "category": "region_au",
+      "region": "AU",
+      "detect_status": "parsed",
+      "overall": "CONFIRMED_RELEVANCE",
+      "fired_rules": [
+        "known_trigger_match"
+      ],
+      "passed": true,
+      "failures": []
+    }
+  ]
+}
