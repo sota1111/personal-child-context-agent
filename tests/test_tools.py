@@ -11,15 +11,10 @@ from pcca.tools import (
     create_gmail_draft,
     create_reminder,
     evaluate_conflict,
-    extract_school_information,
 )
 
-
-def test_document_tool_stub_shape() -> None:
-    out = extract_school_information("doc-1", source="pdf")
-    assert out["status"] == "not_implemented"
-    assert out["structured_information"] == {}
-    assert "evidence" in out
+# The Document Tool is implemented (SOT-2740); its behaviour is covered by
+# tests/test_document_tool.py. The tools below are still interface stubs.
 
 
 def test_conflict_tool_stub_shape() -> None:
