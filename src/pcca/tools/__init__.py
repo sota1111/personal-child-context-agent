@@ -2,7 +2,7 @@
 
 Implementation status:
   - Document Tool  → implemented (SOT-2740)
-  - Conflict Tool  → interface stub (SOT-2741)
+  - Conflict Tool  → implemented (SOT-2741)
   - Action Tools   → interface stubs (SOT-2742)
 
 Each tool is a plain function (ADK function-tool) with a docstring the Root Agent
