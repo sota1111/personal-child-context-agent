@@ -254,3 +254,5 @@ curl -sS -o /dev/null -w '%{http_code}\n' -b cookies.txt <url>/api/auth/me   # -
 > real credentials and an enabled Firebase project, so they are performed by a human
 > operator; this repo ships the exact steps plus `scripts/login_smoke_test.sh` to make
 > that a one-command check.
+
+Webhook sequence verification: step 1 completed.
