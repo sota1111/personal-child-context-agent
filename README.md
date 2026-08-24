@@ -256,3 +256,5 @@ curl -sS -o /dev/null -w '%{http_code}\n' -b cookies.txt <url>/api/auth/me   # -
 > that a one-command check.
 
 Webhook sequence verification: step 1 completed.
+
+Webhook sequence verification: step 2 completed.
